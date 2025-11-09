@@ -1,56 +1,58 @@
-from fastapi import FastAPI
-from backend.data_simulator import generate_synthetic_data
-from backend.stream_processor import process_stream_data
-from backend.database import SessionLocal, HappinessRecord
-from sqlalchemy import desc
+# --- data_listener.py ---
+# (Run this in a *separate* terminal from your simulator)
 
-app = FastAPI()
+import requests
+import json
+import time
 
-# In-memory storage for the latest processed data point for simplicity
-latest_data = {}
+# The address of your simulator's web server
+SIMULATOR_URL = "http://localhost:8000"
 
-@app.get("/")
-def read_root():
-    return {"message": "T-Mobile Happiness Index API"}
-
-@app.post("/api/data")
-def trigger_data_processing():
-    """
-    Generates a new synthetic data point, processes it, and stores it.
-    This simulates a new event coming into the system.
-    """
-    global latest_data
-    # In a real app, store_id might come from the request
-    raw_data = generate_synthetic_data(store_id=101)
-    processed_data = process_stream_data(raw_data)
-    latest_data = processed_data
-    return processed_data
-
-@app.get("/api/dashboard-data")
-def get_dashboard_data():
-    """
-    Returns the latest processed data and a summary of recent events
-    for the frontend dashboard.
-    """
-    db = SessionLocal()
+def fetch_latest_data():
+    """Fetches the latest batch of events from the simulator."""
     try:
-        # Get the most recent record
-        latest_record = db.query(HappinessRecord).order_by(desc(HappinessRecord.timestamp)).first()
+        # Make a request to the server
+        response = requests.get(SIMULATOR_URL)
+        
+        # If the request was successful (status code 200)
+        if response.status_code == 200:
+            events = response.json() # Parse the JSON response
+            return events
+        else:
+            print(f"Error: Server returned status code {response.status_code}")
+            return None
 
-        # Get the last 10 records for some trend analysis (placeholder)
-        recent_records = db.query(HappinessRecord).order_by(desc(HappinessRecord.timestamp)).limit(10).all()
+    except requests.exceptions.ConnectionError:
+        print("Error: Could not connect to the simulator.")
+        print("Is simulator.py running?")
+        return None
+    except json.JSONDecodeError:
+        print("Error: Received invalid JSON from the server.")
+        return None
 
-        # In a real dashboard, you'd aggregate this data meaningfully
-        # Here, we'll just pass the latest record's score and some alerts
+def main():
+    print("--- 🚀 Real-Time Data Listener START ---")
+    print(f"Polling {SIMULATOR_URL} every 5 seconds...")
+    print("Press Ctrl+C to stop.\n")
+    
+    try:
+        while True:
+            events = fetch_latest_data()
+            
+            if events:
+                print(f"--- Received {len(events)} new events at {time.strftime('%H:%M:%S')} ---")
+                
+                # Now you can do anything you want with the data.
+                # For this example, we'll just print them.
+                for event in events:
+                    print(json.dumps(event, indent=2))
+                print("-" * 30 + "\n")
 
-        alerts = []
-        if latest_record and latest_record.happiness_score < 60:
-            alerts.append(f"Low happiness score detected at store {latest_record.store_id}: {latest_record.happiness_score:.2f}")
+            # Wait for the next tick
+            time.sleep(5) 
+            
+    except KeyboardInterrupt:
+        print("\n--- 🛑 Listener Stopped ---")
 
-        return {
-            "latest_score": latest_record.happiness_score if latest_record else 85,
-            "alerts": alerts,
-            "recent_events_count": len(recent_records)
-        }
-    finally:
-        db.close()
+if __name__ == "__main__":
+    main()
