@@ -1,0 +1,21 @@
+# Backend dependencies
+fastapi
+uvicorn
+sqlalchemy
+python-dotenv
+
+# Frontend dependencies
+dash
+dash-daq
+plotly
+pandas
+
+# ML dependencies
+numpy
+
+# Prometheus client
+prometheus-client
+
+# Add other specific libraries as needed, e.g., for NVIDIA or ElevenLabs SDKs
+# nvidia-pyindex
+# elevenlabs
